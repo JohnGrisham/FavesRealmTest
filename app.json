@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "myawesomerealmapp",
+    "slug": "myawesomerealmapp",
+    "version": "1.0.0",
+    "sdkVersion": "44.0.0",
+    "platforms": ["android", "web"],
+    "android": {
+      "package": "android.expo.test"
+    }
+  }
+}
