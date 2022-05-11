@@ -9,6 +9,6 @@ jobs:
         with:
           node-version: 14.x
       - run: npm install yarn
-      - run: yarn install mongodb-realm-cli
+      - run: yarn add global mongodb-realm-cli
       - run: realm-cli login --api-key="huiapykw" --private-api-keys"8a4b0045-5cb9-4fae-8733-b28c6f676ca9"
-      - run: echo APP_ID=$(realm-cli push -y --project="627c11140f6dc8296e3983a9") | $GITHUB_ENV
+      - run: echo APP_ID=$(realm-cli push --path="./realm" -y --project="627c11140f6dc8296e3983a9") | $GITHUB_ENV
