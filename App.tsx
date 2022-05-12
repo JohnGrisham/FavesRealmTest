@@ -1,25 +1,27 @@
-import { useCallback, useMemo } from "react";
-import { SafeAreaView, View, StyleSheet } from "react-native";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { SafeAreaView, View, StyleSheet } from 'react-native';
 
-import TaskContext, { Task } from "./app/models/Task";
-import IntroText from "./app/components/IntroText";
-import AddTaskForm from "./app/components/AddTaskForm";
-import TaskList from "./app/components/TaskList";
-import colors from "./app/styles/colors";
+import TaskContext, { Task } from './app/models/Task';
+import IntroText from './app/components/IntroText';
+import AddTaskForm from './app/components/AddTaskForm';
+import Realm from 'realm';
+import TaskList from './app/components/TaskList';
+import colors from './app/styles/colors';
+import { appId, baseUrl } from './realm.json';
 
-const { useRealm, useQuery, RealmProvider } = TaskContext;
+const { RealmProvider } = TaskContext;
 
 function App() {
-  const realm = useRealm();
-  const result = useQuery(Task);
-
-  const tasks = useMemo(() => result.sorted("createdAt"), [result]);
+  const [tasks, setTasks] = useState([]);
+  const realmReference = useRef(null);
 
   const handleAddTask = useCallback(
     (description: string): void => {
       if (!description) {
         return;
       }
+
+      console.log(realmReference);
 
       // Everything in the function passed to "realm.write" is a transaction and will
       // hence succeed or fail together. A transcation is the smallest unit of transfer
@@ -28,16 +30,16 @@ function App() {
       // may occasionally be online during short time spans we want to increase the probability
       // of sync participants to successfully sync everything in the transaction, otherwise
       // no changes propagate and the transaction needs to start over when connectivity allows.
-      realm.write(() => {
-        realm.create("Task", Task.generate(description));
+      realmReference.current.write(() => {
+        realmReference.current.create('Task', Task.generate(description));
       });
     },
-    [realm],
+    [realmReference],
   );
 
   const handleToggleTaskStatus = useCallback(
     (task: Task): void => {
-      realm.write(() => {
+      realmReference.current.write(() => {
         // Normally when updating a record in a NoSQL or SQL database, we have to type
         // a statement that will later be interpreted and used as instructions for how
         // to update the record. But in RealmDB, the objects are "live" because they are
@@ -56,20 +58,78 @@ function App() {
       //   task.isComplete = !task.isComplete;
       // });
     },
-    [realm],
+    [realmReference],
   );
 
   const handleDeleteTask = useCallback(
     (task: Task): void => {
-      realm.write(() => {
-        realm.delete(task);
+      realmReference.current.write(() => {
+        realmReference.current.delete(task);
 
         // Alternatively if passing the ID as the argument to handleDeleteTask:
         // realm?.delete(realm?.objectForPrimaryKey('Task', id));
       });
     },
-    [realm],
+    [realmReference],
   );
+
+  useEffect(() => {
+    const initializeRealm = async () => {
+      console.log('Initializing Realm...');
+      const appConfiguration = {
+        id: appId,
+        baseUrl,
+      };
+
+      const realmApp = new Realm.App(appConfiguration);
+      const credentials = Realm.Credentials.anonymous(); // create an anonymous credential
+      const user = await realmApp.logIn(credentials);
+
+      const config = {
+        schema: [Task.schema],
+        sync: {
+          user,
+          partitionValue: user.id,
+        },
+      };
+
+      const realm = await Realm.open(config);
+      realmReference.current = realm;
+
+      // if the realm exists, get all Task items and add a listener on the Task collection
+      if (realm) {
+        // Get all Task items, sorted by name
+        const sortedTasks = realmReference.current
+          .objects('Task')
+          .sorted('createdAt');
+        // set the sorted Tasks to state as an array, so they can be rendered as a list
+        setTasks([...sortedTasks]);
+        // watch for changes to the Task collection. When tasks are created,
+        // modified or deleted the 'sortedTasks' variable will update with the new
+        // live Task objects, and then the Tasks in state will be updated to the
+        // sortedTasks
+        sortedTasks.addListener(() => {
+          setTasks([...sortedTasks]);
+        });
+
+        console.log('Listening for changes to the Task collection...');
+      }
+    };
+
+    initializeRealm();
+
+    // cleanup function to close realm after component unmounts
+    return () => {
+      const realm = realmReference.current;
+      // if the realm exists, close the realm
+      if (realm) {
+        realm.close();
+        // set the reference to null so the realm can't be used after it is closed
+        realmReference.current = null;
+        setTasks([]); // set the Tasks state to an empty array since the component is unmounting
+      }
+    };
+  }, [realmReference, setTasks]);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -78,7 +138,11 @@ function App() {
         {tasks.length === 0 ? (
           <IntroText />
         ) : (
-          <TaskList tasks={tasks} onToggleTaskStatus={handleToggleTaskStatus} onDeleteTask={handleDeleteTask} />
+          <TaskList
+            tasks={tasks}
+            onToggleTaskStatus={handleToggleTaskStatus}
+            onDeleteTask={handleDeleteTask}
+          />
         )}
       </View>
     </SafeAreaView>

@@ -1,22 +1,20 @@
 import { View, FlatList, StyleSheet } from 'react-native';
-import { Realm } from '@realm/react';
-
 import { Task } from '../models/Task';
 import TaskItem from './TaskItem';
 
 interface TaskListProps {
-  tasks: Realm.Results<Task> | [];
+  tasks: any;
   onToggleTaskStatus: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
 }
 
-function TaskList({tasks, onToggleTaskStatus, onDeleteTask}: TaskListProps) {
+function TaskList({ tasks, onToggleTaskStatus, onDeleteTask }: TaskListProps) {
   return (
     <View style={styles.listContainer}>
       <FlatList
         data={tasks}
-        keyExtractor={task => task._id.toString()}
-        renderItem={({item}) => (
+        keyExtractor={(task) => task._id.toString()}
+        renderItem={({ item }) => (
           <TaskItem
             description={item.description}
             isComplete={item.isComplete}
